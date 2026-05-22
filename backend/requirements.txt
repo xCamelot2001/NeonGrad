@@ -37,5 +37,9 @@ apscheduler==3.10.4
 # Env management
 python-dotenv==1.0.1
 
+# Phase 3 — Tailoring agent
+tavily-python==0.3.9        # company research via Tavily search API
+reportlab==4.2.5            # PDF generation for tailored CV + cover letter
+
 # Utilities
 pydantic==2.11.4
