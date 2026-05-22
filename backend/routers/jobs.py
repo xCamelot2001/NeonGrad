@@ -1,8 +1,23 @@
 from fastapi import APIRouter, HTTPException, Request
 from tools.supabase_client import get_supabase, get_user_id_from_request
 from agents.discovery_agent import run_discovery
+from agents.ranking_agent import run_ranking
 
 router = APIRouter()
+
+
+@router.post("/rank")
+async def rank_jobs(request: Request):
+    """
+    Trigger the Job Ranking Agent for the current user.
+    Scores all unranked jobs with the sentence-transformer model,
+    runs gap analysis via Groq for the top 50, and stores results
+    in job_rankings. Called after discovery or when the user clicks
+    "Rank Jobs" on the dashboard.
+    """
+    user_id = get_user_id_from_request(request)
+    result = await run_ranking(user_id)
+    return result
 
 
 @router.post("/discover")
@@ -84,20 +99,22 @@ async def get_job(request: Request, job_id: str):
     user_id = get_user_id_from_request(request)
     supabase = get_supabase()
 
-    job_result = supabase.table("jobs").select("*").eq("id", job_id).single().execute()
+    job_result = supabase.table("jobs").select("*").eq("id", job_id).execute()
     if not job_result.data:
         raise HTTPException(status_code=404, detail="Job not found.")
 
+    # Use limit(1) instead of .single() so 0 rows doesn't raise PGRST116
     ranking_result = (
         supabase.table("job_rankings")
         .select("*")
         .eq("job_id", job_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
+    ranking_data = ranking_result.data[0] if ranking_result.data else {}
 
     return {
-        **job_result.data,
-        **(ranking_result.data or {}),
+        **job_result.data[0],
+        **ranking_data,
     }

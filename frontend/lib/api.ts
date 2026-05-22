@@ -49,9 +49,10 @@ export const api = {
     apiFetch("/api/profile/preferences", { method: "PUT", body: JSON.stringify(data) }),
 
   // Jobs
-  getRankedJobs: () => apiFetch("/api/jobs/ranked"),
+  getRankedJobs: (limit?: number) => apiFetch(`/api/jobs/ranked${limit ? `?limit=${limit}` : ""}`),
   getJob: (id: string) => apiFetch(`/api/jobs/${id}`),
   discoverJobs: () => apiFetch("/api/jobs/discover", { method: "POST" }),
+  rankJobs: () => apiFetch("/api/jobs/rank", { method: "POST" }),
 
   // Applications
   getApplications: () => apiFetch("/api/applications"),
