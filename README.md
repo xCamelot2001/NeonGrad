@@ -4,30 +4,35 @@
 
 ## Stack
 
-| Layer      | Technology                         |
-| ---------- | ---------------------------------- |
-| Frontend   | Next.js 15 + Tailwind CSS          |
-| Backend    | FastAPI (Python)                   |
-| Auth + DB  | Supabase (PostgreSQL + Auth)       |
-| Agents     | LangGraph + Groq (Llama 3.1 8B)    |
-| Job data   | Adzuna API                         |
-| ML scoring | sentence-transformers (fine-tuned) |
-| Containers | Docker + Docker Compose            |
-| Deployment | Vercel (FE) + Railway (BE)         |
+| Layer      | Technology                          |
+| ---------- | ----------------------------------- |
+| Frontend   | Next.js 15 + Tailwind CSS           |
+| Backend    | FastAPI (Python)                    |
+| Auth + DB  | Supabase (PostgreSQL + Auth)        |
+| Agents     | LangGraph + Groq (Llama 3.1 8B)     |
+| Job data   | Adzuna API                          |
+| Research   | Tavily API (company research)       |
+| ML scoring | sentence-transformers (fine-tuned)  |
+| PDF export | ReportLab                           |
+| Containers | Docker + Docker Compose             |
+| Deployment | Vercel (FE) + Railway (BE)          |
 
 ## Repo Structure
 
 ```
 neongrad/
 ├── frontend/        # Next.js 15 app (Tailwind, Supabase auth)
-│   ├── app/         # App router pages (dashboard, jobs, auth)
-│   ├── components/  # Shared UI components
+│   ├── app/         # App router pages (landing, dashboard, jobs, applications, auth, onboarding, profile)
+│   ├── components/  # Shared UI components (Navbar, Skeleton)
 │   └── lib/         # API client, Supabase client
 ├── backend/         # FastAPI app
-│   ├── agents/      # LangGraph pipelines (ranking_agent.py)
+│   ├── agents/      # LangGraph pipelines
+│   │   ├── discovery_agent.py   # Fetches + deduplicates jobs from Adzuna
+│   │   ├── ranking_agent.py     # Scores jobs against CV, gap analysis, strategy assignment
+│   │   └── tailoring_agent.py   # Tailors CV + cover letter with judge loop
 │   ├── models/      # ML scorer singleton (scorer.py)
-│   ├── routers/     # API route handlers (jobs, profiles, cv)
-│   └── tools/       # Shared utilities (supabase client, adzuna)
+│   ├── routers/     # API route handlers (jobs, applications, profile)
+│   └── tools/       # Utilities (adzuna, web_search, pdf_generator, supabase client)
 ├── ml/              # Model training scripts
 │   ├── generate_dataset.py   # Generates synthetic training data via Groq
 │   ├── train_scorer.py       # Fine-tunes all-MiniLM-L6-v2 with regression head
@@ -44,6 +49,7 @@ neongrad/
 - A [Supabase](https://supabase.com) project (free tier)
 - [Adzuna API](https://developer.adzuna.com) key (free tier)
 - [Groq API](https://console.groq.com) key (free tier)
+- [Tavily API](https://tavily.com) key (free tier — 1000 req/month)
 
 ---
 
@@ -112,7 +118,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 GROQ_API_KEY=
 ADZUNA_APP_ID=
 ADZUNA_API_KEY=
-SCORER_MODEL_ID=          # leave blank to use cosine similarity fallback
+ADZUNA_COUNTRY=gb             # default country for job search (gb, us, de, fr, au, ca, ...)
+TAVILY_API_KEY=               # used by tailoring agent for company research
+SCORER_MODEL_ID=              # leave blank to use cosine similarity fallback
 ```
 
 **`frontend/.env.local`**
@@ -127,7 +135,13 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## How It Works
 
-### Phase 2 — Ranking Engine
+### Job Discovery
+
+The discovery agent runs on demand (or daily via APScheduler at 06:00 UTC). For each `(role × location)` pair in your preferences it paginates Adzuna up to 5 pages (250 jobs max per combo), deduplicates against the existing `jobs` table, and stores only new listings.
+
+Location handling: `"Remote"` triggers a country-wide search (no `where` param). Non-UK cities (Berlin, New York, etc.) automatically hit the correct Adzuna country endpoint.
+
+### Ranking Engine
 
 The core of NeonGrad is a **LangGraph pipeline** that runs whenever you click "Rank Jobs":
 
@@ -144,6 +158,23 @@ load_profile
 **Why this order?** Groq's free tier is 6000 TPM / 30 RPM. Scoring 500 jobs locally first reduces Groq calls to ≤50 — well within free tier limits.
 
 **Skill matching** is done deterministically in Python (no LLM): exact match, substring match, bigram match, and a 20+ alias map (`aws ↔ amazon web services`, `sklearn ↔ scikit-learn`, etc). Groq is only used for the qualitative one-sentence fit summary.
+
+### Tailoring Agent
+
+When you click "Generate tailored CV + Cover Letter" on a job, a second **LangGraph pipeline** runs:
+
+```
+load_context
+  → research_company          # Tavily fetches company mission, culture, recent news
+    → generate_docs           # Groq rewrites CV bullets + writes personalised cover letter
+      → judge_quality         # Groq scores output (keyword coverage, tone, accuracy) → 0.0–1.0
+        → if score < 0.75: increment_revision → generate_docs (max 2 revisions)
+          → store_result      # saves tailored_cv_text + cover_letter_text to applications table
+```
+
+Progress is streamed live to the browser via **SSE** (Server-Sent Events). The agent pushes messages to an `asyncio.Queue`; the SSE endpoint drains it in real time. PDFs are generated with ReportLab and downloadable from the application detail page.
+
+**Note:** `fetch()` + `ReadableStream` is used for SSE (not `EventSource`) because the backend requires an `Authorization: Bearer` header which `EventSource` can't send.
 
 ### ML Scorer (optional fine-tuning)
 
@@ -166,10 +197,10 @@ Then set `SCORER_MODEL_ID=YOUR_HF_USERNAME/neongrad-relevance-scorer` in `backen
 
 - **Phase 1** ✅ Foundation — scaffold, auth, CV parsing (PDF/DOCX), Adzuna job discovery
 - **Phase 2** ✅ Ranking engine — LangGraph pipeline, sentence-transformer scoring, gap analysis dashboard
-- **Phase 3** 🔲 Application pipeline — tailoring agent with judge loop, streaming SSE, Kanban tracker, PDF export
-- **Phase 4** 🔲 Interview prep + analytics
-- **Phase 5** 🔲 Polish + deploy + beta users
+- **Phase 3** ✅ Application pipeline — tailoring agent with judge loop, SSE streaming, Kanban tracker, PDF export
+- **Phase 4** ⏸ Interview prep + analytics — deferred
+- **Phase 5** 🔄 Polish + deploy + beta users — in progress
 
 ---
 
-_Built by Hossein Masjedi · Next.js · FastAPI · LangGraph · Groq · Supabase · sentence-transformers_
+_Built by Hossein Masjedi · Next.js · FastAPI · LangGraph · Groq · Supabase · sentence-transformers · Tavily_
