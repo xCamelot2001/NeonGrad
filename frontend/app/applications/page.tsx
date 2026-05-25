@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import Navbar from "@/components/Navbar";
+import { KanbanCardSkeleton } from "@/components/Skeleton";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,14 +41,19 @@ export default function ApplicationsPage() {
   const router = useRouter();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState(false);
   const [movingId, setMovingId]         = useState<string | null>(null);
 
-  useEffect(() => {
+  function fetchApplications() {
+    setLoadError(false);
+    setLoading(true);
     api.getApplications()
       .then((d) => setApplications(d.applications ?? []))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { fetchApplications(); }, []);
 
   async function moveStatus(app: Application, newStatus: AppStatus) {
     if (app.status === newStatus) return;
@@ -64,32 +71,16 @@ export default function ApplicationsPage() {
   const byStatus = (status: AppStatus) =>
     applications.filter((a) => a.status === status);
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <p className="text-slate-500 animate-pulse">Loading applications…</p>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-slate-950">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-slate-800">
-        <span className="text-xl font-bold text-brand-500">NeonGrad</span>
-        <div className="flex gap-6 text-sm text-slate-400">
-          <Link href="/dashboard"    className="hover:text-slate-100">Dashboard</Link>
-          <Link href="/applications" className="text-slate-100 font-medium">Applications</Link>
-          <Link href="/profile"      className="hover:text-slate-100">Profile</Link>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Header */}
       <div className="px-6 pt-8 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Application Tracker</h1>
           <p className="text-slate-500 text-sm mt-1">
-            {applications.length} application{applications.length !== 1 ? "s" : ""} total
+            {loading ? "Loading…" : `${applications.length} application${applications.length !== 1 ? "s" : ""} total`}
           </p>
         </div>
         <Link
@@ -100,8 +91,23 @@ export default function ApplicationsPage() {
         </Link>
       </div>
 
+      {/* Error banner */}
+      {loadError && !loading && (
+        <div className="max-w-[1400px] mx-auto px-6 mb-4">
+          <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+            <span>Couldn&apos;t load applications — check your connection or log in again.</span>
+            <button
+              onClick={fetchApplications}
+              className="ml-4 shrink-0 text-xs font-semibold underline hover:text-red-100 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {applications.length === 0 && (
+      {!loading && applications.length === 0 && (
         <div className="max-w-md mx-auto mt-20 text-center px-6">
           <div className="text-5xl mb-5">📋</div>
           <h2 className="text-lg font-semibold text-slate-200 mb-2">No applications yet</h2>
@@ -118,8 +124,27 @@ export default function ApplicationsPage() {
         </div>
       )}
 
+      {/* Kanban board — skeleton while loading */}
+      {loading && (
+        <div className="overflow-x-auto pb-12">
+          <div className="flex gap-4 px-6 pt-2 min-w-max max-w-[1400px] mx-auto">
+            {COLUMNS.map(({ status, label, color, dot }) => (
+              <div key={status} className="w-64 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <span className={`w-2 h-2 rounded-full ${dot} opacity-40`} />
+                  <span className="text-sm font-semibold text-slate-500">{label}</span>
+                </div>
+                <div className={`rounded-2xl border ${color} bg-slate-900/30 min-h-[200px] p-2 space-y-2 opacity-60`}>
+                  {[0, 1].map((i) => <KanbanCardSkeleton key={i} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Kanban board */}
-      {applications.length > 0 && (
+      {!loading && applications.length > 0 && (
         <div className="overflow-x-auto pb-12">
           <div className="flex gap-4 px-6 pt-2 min-w-max max-w-[1400px] mx-auto">
             {COLUMNS.map(({ status, label, color, dot }) => {

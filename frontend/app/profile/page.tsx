@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import Navbar from "@/components/Navbar";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
@@ -34,14 +35,7 @@ export default function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-slate-950">
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-slate-800">
-        <span className="text-xl font-bold text-brand-500">NeonGrad</span>
-        <div className="flex gap-6 text-sm text-slate-400">
-          <Link href="/dashboard" className="hover:text-slate-100">Dashboard</Link>
-          <Link href="/applications" className="hover:text-slate-100">Applications</Link>
-          <Link href="/profile" className="text-slate-100">Profile</Link>
-        </div>
-      </nav>
+      <Navbar />
       <div className="max-w-2xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold mb-8">Your Profile</h1>
 

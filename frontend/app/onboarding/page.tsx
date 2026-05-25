@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUploadCV, api } from "@/lib/api";
 
 const STEPS = ["Upload CV", "Your Preferences", "First Discovery"];
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -19,7 +20,16 @@ export default function OnboardingPage() {
     experienceLevel: "mid",
   });
   const [discovering, setDiscovering] = useState(false);
-  const router = useRouter();
+
+  // Guard: redirect users who already completed onboarding
+  useEffect(() => {
+    api.getProfile()
+      .then((profile) => {
+        const hasPrefs = Array.isArray(profile?.target_roles) && profile.target_roles.length > 0;
+        if (hasPrefs) router.push("/dashboard");
+      })
+      .catch(() => { /* not logged in or network error — let onboarding render */ });
+  }, []);
 
   // ── Step 1: CV Upload ──────────────────────────────────────────────────────
   async function handleCvUpload() {

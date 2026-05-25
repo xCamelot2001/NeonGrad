@@ -32,21 +32,20 @@ async def discover_jobs(request: Request):
 
 
 @router.get("/ranked")
-async def get_ranked_jobs(request: Request, limit: int = 20, skip_strategy: str = "skip"):
+async def get_ranked_jobs(request: Request, skip_strategy: str = "skip"):
     """
-    Return ranked jobs for the current user.
+    Return all ranked jobs for the current user, sorted by relevance score.
     Falls back to raw jobs from the jobs table if no rankings exist yet (pre-Phase 2).
     """
     user_id = get_user_id_from_request(request)
     supabase = get_supabase()
 
-    # Try rankings first (Phase 2+)
+    # Try rankings first (Phase 2+) — no limit, return everything
     rankings_result = (
         supabase.table("job_rankings")
         .select("*, jobs(*)")
         .eq("user_id", user_id)
         .order("relevance_score", desc=True)
-        .limit(limit)
         .execute()
     )
 
@@ -72,7 +71,6 @@ async def get_ranked_jobs(request: Request, limit: int = 20, skip_strategy: str 
         supabase.table("jobs")
         .select("*")
         .order("fetched_at", desc=True)
-        .limit(200)
         .execute()
     )
 

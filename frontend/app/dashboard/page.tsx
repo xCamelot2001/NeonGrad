@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import Navbar from "@/components/Navbar";
+import { JobCardSkeleton, StatBarSkeleton } from "@/components/Skeleton";
 
 interface GapAnalysis {
   matched_skills: string[];
@@ -203,17 +205,20 @@ export default function DashboardPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<JobRanking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [ranking, setRanking] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   async function loadJobs() {
+    setLoadError(false);
+    setLoading(true);
     try {
-      const data = await api.getRankedJobs(100);
+      const data = await api.getRankedJobs();
       setJobs(data.jobs ?? []);
     } catch {
-      // silently fail — user may not be authed yet
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -262,15 +267,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-slate-800 sticky top-0 z-10 bg-slate-950/80 backdrop-blur">
-        <span className="text-xl font-bold text-brand-500">NeonGrad</span>
-        <div className="flex gap-6 text-sm text-slate-400">
-          <Link href="/dashboard" className="text-slate-100 font-medium">Dashboard</Link>
-          <Link href="/applications" className="hover:text-slate-100 transition-colors">Applications</Link>
-          <Link href="/profile" className="hover:text-slate-100 transition-colors">Profile</Link>
-        </div>
-      </nav>
+      <Navbar />
 
       <div className="max-w-4xl mx-auto px-6 py-10">
         {/* Header row */}
@@ -308,6 +305,19 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Error banner */}
+        {loadError && !loading && (
+          <div className="mb-6 flex items-center justify-between px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+            <span>Couldn&apos;t load jobs — check your connection or log in again.</span>
+            <button
+              onClick={loadJobs}
+              className="ml-4 shrink-0 text-xs font-semibold underline hover:text-red-100 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Stat bar */}
         {jobs.length > 0 && <StatBar jobs={jobs} />}
 
@@ -336,7 +346,12 @@ export default function DashboardPage() {
 
         {/* Job list */}
         {loading ? (
-          <div className="text-center text-slate-500 py-24">Loading your ranked jobs…</div>
+          <>
+            <StatBarSkeleton />
+            <div className="space-y-3">
+              {[0, 1, 2, 3, 4].map((i) => <JobCardSkeleton key={i} />)}
+            </div>
+          </>
         ) : jobs.length === 0 ? (
           <div className="text-center py-24 border border-dashed border-slate-800 rounded-2xl">
             <div className="text-5xl mb-4">🔍</div>

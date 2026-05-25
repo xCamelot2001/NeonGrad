@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, downloadPdf, streamTailoring } from "@/lib/api";
+import Navbar from "@/components/Navbar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -104,15 +105,7 @@ export default function ApplicationDetailPage() {
 
   return (
     <main className="min-h-screen bg-slate-950">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-slate-800">
-        <span className="text-xl font-bold text-brand-500">NeonGrad</span>
-        <div className="flex gap-6 text-sm text-slate-400">
-          <Link href="/dashboard"    className="hover:text-slate-100">Dashboard</Link>
-          <Link href="/applications" className="hover:text-slate-100">Applications</Link>
-          <Link href="/profile"      className="hover:text-slate-100">Profile</Link>
-        </div>
-      </nav>
+      <Navbar />
 
       <div className="max-w-3xl mx-auto px-6 py-10">
         {/* Back */}

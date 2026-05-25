@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -32,7 +33,15 @@ export default function AuthPage() {
       if (error) {
         setError(error.message);
       } else {
-        router.push("/onboarding");
+        // Route returning users straight to the dashboard if they already have preferences
+        try {
+          const profile = await api.getProfile();
+          const hasPrefs = Array.isArray(profile?.target_roles) && profile.target_roles.length > 0;
+          router.push(hasPrefs ? "/dashboard" : "/onboarding");
+        } catch {
+          // Profile fetch failed (e.g. network blip) — fall back to onboarding; it handles existing users fine
+          router.push("/onboarding");
+        }
       }
     }
     setLoading(false);
